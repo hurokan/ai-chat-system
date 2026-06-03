@@ -1,12 +1,11 @@
 from fastapi import FastAPI, UploadFile, File
-from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-import requests
-import json
 import os
+import requests
 import psycopg2
+from pypdf import PdfReader
 
 app = FastAPI()
 
@@ -15,11 +14,7 @@ app = FastAPI()
 # =========================
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000"
-    ],
-    allow_credentials=True,
+    allow_origins=["http://localhost:3000"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -33,9 +28,8 @@ OLLAMA_EMBED_URL = "http://ollama:11434/api/embeddings"
 UPLOAD_DIR = "/tmp/uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-
 # =========================
-# DB CONNECTION HELPER
+# DB
 # =========================
 def get_conn():
     return psycopg2.connect(
@@ -45,25 +39,23 @@ def get_conn():
         password="admin123"
     )
 
-
 # =========================
-# VECTOR HELPER (IMPORTANT FIX)
+# VECTOR FORMAT
 # =========================
-def to_vector_string(vec):
-    return "[" + ",".join(map(str, vec)) + "]"
-
+def to_vector(v):
+    return "[" + ",".join(map(str, v)) + "]"
 
 # =========================
 # REQUEST MODEL
 # =========================
 class ChatRequest(BaseModel):
     message: str
-
+    document_id: str | None = None
 
 # =========================
-# EMBEDDINGS (OLLAMA)
+# EMBEDDING
 # =========================
-def get_embedding(text: str):
+def embed(text):
     res = requests.post(
         OLLAMA_EMBED_URL,
         json={
@@ -73,97 +65,93 @@ def get_embedding(text: str):
     )
     return res.json()["embedding"]
 
-
 # =========================
 # UPLOAD PDF
 # =========================
 @app.post("/upload")
 async def upload(file: UploadFile = File(...)):
 
-    print("🔥 UPLOAD STARTED")
+    path = os.path.join(UPLOAD_DIR, file.filename)
 
-    file_path = os.path.join(UPLOAD_DIR, file.filename)
-
-    with open(file_path, "wb") as f:
+    with open(path, "wb") as f:
         f.write(await file.read())
 
-    # extract text
-    from pypdf import PdfReader
-
-    reader = PdfReader(file_path)
+    reader = PdfReader(path)
 
     text = ""
-    for page in reader.pages:
-        page_text = page.extract_text() or ""
-        text += page_text
-
-    print("TOTAL TEXT LENGTH:", len(text))
+    for p in reader.pages:
+        text += p.extract_text() or ""
 
     chunks = [text[i:i+500] for i in range(0, len(text), 500)]
-    print("CHUNKS:", len(chunks))
 
     conn = get_conn()
     cur = conn.cursor()
 
-    inserted = 0
-
-    for chunk in chunks:
+    for i, chunk in enumerate(chunks):
         try:
-            embedding = get_embedding(chunk)
+            vec = embed(chunk)
 
-            cur.execute(
-                "INSERT INTO documents (content, embedding) VALUES (%s, %s)",
-                (chunk, to_vector_string(embedding))
-            )
-
-            inserted += 1
+            cur.execute("""
+                INSERT INTO documents
+                (document_id, filename, chunk_index, content, embedding)
+                VALUES (%s, %s, %s, %s, %s)
+            """, (
+                file.filename,
+                file.filename,
+                i,
+                chunk,
+                to_vector(vec)
+            ))
 
         except Exception as e:
-            print("❌ INSERT ERROR:", e)
+            conn.rollback()
+            print("ERROR:", e)
 
-    conn.commit()
+        else:
+            conn.commit()
+
     cur.close()
     conn.close()
 
-    print("✅ INSERTED ROWS:", inserted)
-
     return {
-        "chunks": len(chunks),
-        "inserted": inserted
+        "document_id": file.filename,
+        "chunks": len(chunks)
     }
 
-
 # =========================
-# CHAT (RAG ENABLED)
+# CHAT (RAG)
 # =========================
 @app.post("/chat")
 def chat(req: ChatRequest):
 
-    try:
-        conn = get_conn()
-        cur = conn.cursor()
+    conn = get_conn()
+    cur = conn.cursor()
 
-        # 1. embed query
-        query_embedding = get_embedding(req.message)
+    qvec = embed(req.message)
 
-        # 2. vector search (FIXED)
+    # If document_id provided → filtered search
+    if req.document_id:
+        cur.execute("""
+            SELECT content
+            FROM documents
+            WHERE document_id = %s
+            ORDER BY embedding <-> %s::vector
+            LIMIT 5
+        """, (req.document_id, to_vector(qvec)))
+    else:
         cur.execute("""
             SELECT content
             FROM documents
             ORDER BY embedding <-> %s::vector
-            LIMIT 3
-        """, (to_vector_string(query_embedding),))
+            LIMIT 5
+        """, (to_vector(qvec),))
 
-        rows = cur.fetchall()
+    rows = cur.fetchall()
 
-        context = "\n".join([r[0] for r in rows])
+    context = "\n".join([r[0] for r in rows])
 
-        cur.close()
-        conn.close()
-
-        # 3. build prompt
-        prompt = f"""
-Use the context below to answer the question.
+    prompt = f"""
+Use only the context below.
 
 Context:
 {context}
@@ -172,22 +160,18 @@ Question:
 {req.message}
 """
 
-        # 4. call ollama
-        response = requests.post(
-            OLLAMA_CHAT_URL,
-            json={
-                "model": "llama3.2",
-                "prompt": prompt,
-                "stream": False
-            }
-        )
-
-        data = response.json()
-
-        return {
-            "response": data.get("response", "")
+    res = requests.post(
+        OLLAMA_CHAT_URL,
+        json={
+            "model": "llama3.2",
+            "prompt": prompt,
+            "stream": False
         }
+    )
 
-    except Exception as e:
-        print("❌ CHAT ERROR:", e)
-        return {"error": str(e)}
+    cur.close()
+    conn.close()
+
+    return {
+        "response": res.json().get("response", "")
+    }
