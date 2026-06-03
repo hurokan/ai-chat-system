@@ -1,142 +1,179 @@
-v1.1 - Stable Multi-Document RAG Base
+
+```markdown
+# Multi-Document RAG Base (v1.1)
+
+A robust, local Retrieval-Augmented Generation (RAG) system built with Next.js, FastAPI, PostgreSQL (`pgvector`), and Ollama. This setup allows you to upload multiple PDF documents, process and embed them locally, and perform context-aware semantic searches to answer user queries.
+
+---
+
+## 🏗️ System Architecture
+
+
+```
 
 User
- │
- ▼
+│
+▼
 Frontend (Next.js)
- │
- ▼
+│
+▼
 FastAPI Backend
- │
- ├── PDF Upload API
- ├── Chat API (RAG)
- │
- ├── Embedding Service (Ollama)
- ├── LLM Service (Ollama)
- │
- ▼
+├── PDF Upload API
+├── Chat API (RAG)
+├── Embedding Service (Ollama)
+└── LLM Service (Ollama)
+│
+▼
 PostgreSQL + pgvector
- │
- ▼
+│
+▼
 Vector Similarity Search
- │
- ▼
-Context → LLM → Answer
+│
+▼
+Context ──> LLM ──> Answer
 
-Features (v1.1)
-📄 PDF Upload
-Upload PDF via /upload
-Extract text using pypdf
-Clean invalid characters
-Split into chunks
-Generate embeddings
-Store in PostgreSQL
+```
 
-🧠 RAG Pipeline
-PDF → Text Extraction → Chunking → Cleaning → Embeddings → Vector DB
+---
 
-💬 Chat System
+## 🚀 Features
 
-Endpoint:
+### 📄 PDF Upload & Processing
+* **Endpoint:** `POST /upload`
+* **Text Extraction:** Powered by `pypdf`.
+* **Text Sanitization:** Automatic cleaning of invalid/control characters.
+* **Chunking:** Fixed-size chunking with strategic overlap.
+* **Vector Storage:** Embeddings are generated locally and stored directly in PostgreSQL.
 
-POST /chat
+### 🧠 RAG Pipeline
 
-Flow:
+```
 
-User Query
-   ↓
-Embedding (Ollama)
-   ↓
-Vector Search (pgvector)
-   ↓
-Top-K Context Retrieval
-   ↓
-Prompt Construction
-   ↓
-LLM Response (llama3.2)
-🗄️ Database Schema
-📄 documents
+PDF ──> Text Extraction ──> Chunking ──> Cleaning ──> Embeddings ──> Vector DB
+
+```
+
+### 💬 Chat System
+* **Endpoint:** `POST /chat`
+* **Flow:**
+
+```
+
+User Query ──> Embedding (Ollama) ──> Vector Search (pgvector) ──> Top-K Context ──> Prompt Construction ──> LLM (llama3.2)
+
+```
+
+---
+
+## 🛠️ Tech Stack & Configurations
+
+### 🤖 AI Models (Ollama)
+* **Embedding Model:** `nomic-embed-text` (Generates 768-dimensional dense vectors used for semantic search).
+* **LLM Model:** `llama3.2` (Handles context-aware answer generation).
+
+### ✂️ Chunking Strategy
+* **Chunk Size:** 1000 characters
+* **Chunk Overlap:** 200 characters
+* **Why:** Balances granular semantic data retrieval with enough surrounding context to prevent information loss at chunk boundaries.
+
+### 🧹 Text Cleaning (Critical Step)
+To prevent database serialization errors during insertion, the backend automatically sanitizes extracted text before embedding:
+* Removes `NULL` bytes (`\x00`).
+* Strips invalid control characters.
+* Normalizes whitespace.
+
+---
+
+## 🗄️ Database Schema
+
+The system uses PostgreSQL with the `pgvector` extension to handle relational metadata and high-dimensional vector data side-by-side.
+
+```sql
+-- Track uploaded files
 CREATE TABLE documents (
-    id SERIAL PRIMARY KEY,
-    document_id TEXT UNIQUE,
-    filename TEXT,
-    file_type TEXT DEFAULT 'pdf',
-    upload_time TIMESTAMP DEFAULT NOW()
+  id SERIAL PRIMARY KEY,
+  document_id TEXT UNIQUE,
+  filename TEXT,
+  file_type TEXT DEFAULT 'pdf',
+  upload_time TIMESTAMP DEFAULT NOW()
 );
-🧩 document_chunks
+
+-- Store document chunks and their high-dimensional embeddings
 CREATE TABLE document_chunks (
-    id SERIAL PRIMARY KEY,
-    document_id TEXT,
-    chunk_index INT,
-    content TEXT,
-    embedding VECTOR(768)
+  id SERIAL PRIMARY KEY,
+  document_id TEXT REFERENCES documents(document_id) ON DELETE CASCADE,
+  chunk_index INT,
+  content TEXT,
+  embedding VECTOR(768)
 );
-🧠 Embedding Model
-nomic-embed-text
-Used for semantic search
-Converts text → vector (768-dim)
-🤖 LLM Model
-llama3.2
-Used for answering questions
-Context-aware generation
-✂️ Chunking Strategy
-size = 1000 characters
-overlap = 200 characters
 
-Why:
+```
 
-improves retrieval accuracy
-avoids losing context
-🧹 Text Cleaning (IMPORTANT)
+### 🔎 Vector Search Logic
 
-Before storing in DB:
+The system utilizes **Euclidean Distance (`<->`)** (or optionally Cosine Distance `<=>`) to fetch the top 5 most relevant chunks:
 
-Remove NULL bytes (\x00)
-Remove control characters
-Normalize whitespace
-🔎 Vector Search Logic
-SELECT content
-FROM document_chunks
-ORDER BY embedding <-> query_embedding
+```sql
+SELECT content 
+FROM document_chunks 
+ORDER BY embedding <-> :query_embedding 
 LIMIT 5;
 
-📌 API Endpoints
-Upload PDF
-POST /upload
+```
 
-Response:
+---
 
+## 📌 API Endpoints Reference
+
+### 1. Upload PDF
+
+* **Method:** `POST`
+* **Path:** `/upload`
+* **Payload:** `multipart/form-data` (File)
+
+**Response:**
+
+```json
 {
-  "document_id": "uuid",
-  "filename": "file.pdf",
+  "document_id": "8f3b29c1-a842-4d73-b391-729019e1e54c",
+  "filename": "architecture_guide.pdf",
   "status": "processed"
 }
-Chat with Document
-POST /chat
 
-Request:
+```
 
+### 2. Chat with Document
+
+* **Method:** `POST`
+* **Path:** `/chat`
+
+**Request Body:**
+
+```json
 {
   "message": "Tell me about software architecture"
 }
 
-Response:
+```
 
+**Response Body:**
+
+```json
 {
-  "response": "AI generated answer..."
+  "response": "Based on the provided documents, software architecture refers to..."
 }
-⚠️ Known Limitations
-1. No document filtering
 
-All documents share vector space.
+```
 
-2. No chat memory
+---
 
-Each query is independent.
+## ⚠️ Known Limitations (v1.1)
 
-3. Basic retrieval only
-No reranking
-No hybrid search
-4. Simple chunking
-Fixed size
-No semantic splitting
+1. **Global Vector Space:** There is currently no multi-tenant or per-document filtering logic. All uploaded documents share the same global vector space during retrieval.
+2. **Stateless Chat:** No session-based chat memory is implemented. Every query is processed independently without historical conversation context.
+3. **Basic Retrieval:** The search pipeline relies entirely on basic vector similarity. Advanced techniques like metadata filtering, hybrid search (BM25 + Vector), or cross-encoder reranking are not yet supported.
+4. **Fixed Chunking:** Document splitting is purely character-bound; it does not account for natural semantic boundaries (e.g., paragraphs or markdown headers).
+
+```
+
+```
