@@ -91,20 +91,43 @@ The system uses PostgreSQL with the `pgvector` extension to handle relational me
 ```sql
 -- Track uploaded files
 CREATE TABLE documents (
-  id SERIAL PRIMARY KEY,
-  document_id TEXT UNIQUE,
-  filename TEXT,
-  file_type TEXT DEFAULT 'pdf',
-  upload_time TIMESTAMP DEFAULT NOW()
+    id SERIAL PRIMARY KEY,
+    document_id TEXT UNIQUE NOT NULL,
+    filename TEXT NOT NULL,
+    file_type TEXT DEFAULT 'pdf',
+    file_size BIGINT,
+    upload_time TIMESTAMP DEFAULT NOW()
 );
 
 -- Store document chunks and their high-dimensional embeddings
 CREATE TABLE document_chunks (
-  id SERIAL PRIMARY KEY,
-  document_id TEXT REFERENCES documents(document_id) ON DELETE CASCADE,
-  chunk_index INT,
-  content TEXT,
-  embedding VECTOR(768)
+    id SERIAL PRIMARY KEY,
+
+    document_id TEXT REFERENCES documents(document_id),
+
+    chunk_index INT,
+    content TEXT NOT NULL,
+
+    embedding VECTOR(768),
+
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE chat_sessions (
+    id SERIAL PRIMARY KEY,
+    session_id TEXT UNIQUE,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE chat_messages (
+    id SERIAL PRIMARY KEY,
+
+    session_id TEXT REFERENCES chat_sessions(session_id),
+
+    role TEXT,  -- user / assistant
+    message TEXT,
+
+    created_at TIMESTAMP DEFAULT NOW()
 );
 
 ```
