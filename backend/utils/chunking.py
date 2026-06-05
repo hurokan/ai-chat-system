@@ -1,11 +1,3 @@
-def chunk_text(text: str, size: int = 1000, overlap: int = 200):
-    chunks = []
-    start = 0
-
-    while start < len(text):
-        end = start + size
-        chunks.append(text[start:end])
-        start += size - overlap
-
-    return chunks
-
+def chunk_text(text: str, size: int = 500):
+    text = text.replace("\x00", "")  # IMPORTANT FIX (your error)
+    return [text[i:i+size] for i in range(0, len(text), size)]

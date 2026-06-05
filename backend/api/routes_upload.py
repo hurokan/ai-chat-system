@@ -1,39 +1,26 @@
 from fastapi import APIRouter, UploadFile, File
-import uuid
-from pypdf import PdfReader
 from services.ingestion_service import ingest_document
-from db.connection import get_conn
+from pypdf import PdfReader
+import tempfile
 
 router = APIRouter()
 
 @router.post("/upload")
 async def upload(file: UploadFile = File(...)):
 
-    document_id = str(uuid.uuid4())
+    with tempfile.NamedTemporaryFile(delete=False) as tmp:
+        tmp.write(await file.read())
+        tmp_path = tmp.name
 
-    reader = PdfReader(file.file)
+    reader = PdfReader(tmp_path)
 
     text = ""
     for page in reader.pages:
         text += page.extract_text() or ""
 
-    # save metadata
-    conn = get_conn()
-    cur = conn.cursor()
-
-    cur.execute("""
-        INSERT INTO documents (document_id, filename)
-        VALUES (%s, %s)
-    """, (document_id, file.filename))
-
-    conn.commit()
-    cur.close()
-    conn.close()
-
-    # ingest chunks
-    ingest_document(document_id, file.filename, text)
+    document_id = ingest_document(file.filename, text)
 
     return {
         "document_id": document_id,
-        "filename": file.filename
+        "status": "uploaded"
     }
