@@ -1,0 +1,14 @@
+ALTER TABLE chat_messages
+ADD COLUMN IF NOT EXISTS session_id UUID;
+
+ALTER TABLE chat_messages
+ADD COLUMN IF NOT EXISTS role TEXT;
+
+ALTER TABLE chat_messages
+ADD COLUMN IF NOT EXISTS content TEXT;
+
+ALTER TABLE chat_messages
+ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}';
+
+ALTER TABLE chat_messages
+ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();

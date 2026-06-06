@@ -18,10 +18,11 @@ def get_applied_migrations(cur):
 
 
 def mark_applied(cur, filename):
-    cur.execute(
-        "INSERT INTO schema_migrations (filename) VALUES (%s)",
-        (filename,)
-    )
+    cur.execute("""
+        INSERT INTO schema_migrations (filename)
+        VALUES (%s)
+        ON CONFLICT (filename) DO NOTHING
+    """, (filename,))
 
 
 def run_migrations():
@@ -33,6 +34,7 @@ def run_migrations():
     migration_files = sorted(Path(MIGRATION_DIR).glob("*.sql"))
 
     for file in migration_files:
+
         if file.name in applied:
             print(f"SKIP: {file.name}")
             continue
@@ -45,6 +47,7 @@ def run_migrations():
             cur.execute(sql)
             mark_applied(cur, file.name)
             conn.commit()
+
             print(f"SUCCESS: {file.name}")
 
         except Exception as e:

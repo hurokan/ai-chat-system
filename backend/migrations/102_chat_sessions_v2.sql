@@ -1,0 +1,11 @@
+ALTER TABLE chat_sessions
+ADD COLUMN IF NOT EXISTS document_id UUID;
+
+ALTER TABLE chat_sessions
+ADD COLUMN IF NOT EXISTS title TEXT;
+
+ALTER TABLE chat_sessions
+ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}';
+
+ALTER TABLE chat_sessions
+ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();
