@@ -1,5 +1,3 @@
-# README.md
-
 📘 AI Chat System — RAG Backend (v1.1)
 
 A lightweight Retrieval-Augmented Generation (RAG) system built with FastAPI + PostgreSQL (pgvector) + Ollama LLM, designed for document-based question answering.
