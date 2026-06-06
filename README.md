@@ -1,202 +1,181 @@
+📘 AI Chat System — RAG Backend (v1.1)
 
-```markdown
-# Multi-Document RAG Base (v1.1)
+A lightweight Retrieval-Augmented Generation (RAG) system built with FastAPI + PostgreSQL (pgvector) + Ollama LLM, designed for document-based question answering.
 
-A robust, local Retrieval-Augmented Generation (RAG) system built with Next.js, FastAPI, PostgreSQL (`pgvector`), and Ollama. This setup allows you to upload multiple PDF documents, process and embed them locally, and perform context-aware semantic searches to answer user queries.
+🏗️ 1. Current Architecture
+🔄 High-Level Flow
+User → Frontend → FastAPI Backend
+                 ↓
+            Embedding Service (Ollama)
+                 ↓
+        PostgreSQL (pgvector search)
+                 ↓
+         Top-K Relevant Chunks
+                 ↓
+          Prompt Builder (RAG)
+                 ↓
+            Ollama LLM (LLama3)
+                 ↓
+            AI Response
+                
 
----
+🧩 Core Components
+1. FastAPI Backend
+Handles /upload and /chat
+Manages RAG pipeline orchestration
+2. Ollama (LLM + Embeddings)
+Embedding model: nomic-embed-text
+Chat model: llama3.2
+Runs locally in Docker
+3. PostgreSQL + pgvector
+Stores:
+documents
+document_chunks
+Performs vector similarity search using <->
+4. RAG Pipeline
+Chunk document
+Generate embeddings
+Store in DB
+Retrieve top-k chunks
+Send to LLM
 
-## 🏗️ System Architecture
+🎯 2. Scope of Current System
+✅ What it supports
+PDF document upload
+Text extraction from PDFs
+Chunking (fixed size)
+Vector embeddings via Ollama
+Semantic search using pgvector
+Single-document QA
+Basic RAG prompt injection
+REST API (/upload, /chat)
+
+📌 Use Cases
+Document Q&A chatbot
+Internal knowledge assistant
+PDF summarization system
+Basic enterprise search
+
+⚠️ 3. Limitations (Current Version)
+❌ Architecture Limitations
+No multi-document filtering
+No session-based memory
+No reranking layer
+No hybrid search (keyword + vector)
+Fixed chunking strategy (no token-aware chunking)
+No streaming response (non-streaming chat)
+No context optimization (token overflow risk)
+❌ Data Limitations
+No document versioning
+No metadata filtering
+No chunk-level ranking score tuning
+❌ LLM Limitations
+No prompt optimization engine
+No memory context window manager
+No tool-calling / agent layer
+
+🚀 4. How to Run (Docker + DB Setup)
+📦 Step 1 — Clone Project
+git clone <repo-url>
+cd ai-chat-system
 
 
-```
+🐳 Step 2 — Start Full Stack
+docker compose up --build
 
-User
-│
-▼
+This will start:
+
+Backend (FastAPI)
+PostgreSQL (with pgvector)
+Ollama (LLM runtime)
 Frontend (Next.js)
-│
-▼
-FastAPI Backend
-├── PDF Upload API
-├── Chat API (RAG)
-├── Embedding Service (Ollama)
-└── LLM Service (Ollama)
-│
-▼
-PostgreSQL + pgvector
-│
-▼
-Vector Similarity Search
-│
-▼
-Context ──> LLM ──> Answer
 
-```
+🗄️ Step 3 — Run Database Migrations
 
----
+After containers start:
 
-## 🚀 Features
+docker exec -it backend python migrate.py
 
-### 📄 PDF Upload & Processing
-* **Endpoint:** `POST /upload`
-* **Text Extraction:** Powered by `pypdf`.
-* **Text Sanitization:** Automatic cleaning of invalid/control characters.
-* **Chunking:** Fixed-size chunking with strategic overlap.
-* **Vector Storage:** Embeddings are generated locally and stored directly in PostgreSQL.
+📄 Step 4 — Enable pgvector (if needed)
 
-### 🧠 RAG Pipeline
+Inside Postgres:
 
-```
+CREATE EXTENSION IF NOT EXISTS vector;
+📤 Step 5 — Upload Document
+POST /upload
 
-PDF ──> Text Extraction ──> Chunking ──> Cleaning ──> Embeddings ──> Vector DB
+Upload PDF file → system will:
 
-```
+extract text
+chunk it
+store embeddings
+💬 Step 6 — Chat with Document
+POST /chat
 
-### 💬 Chat System
-* **Endpoint:** `POST /chat`
-* **Flow:**
+Request:
 
-```
-
-User Query ──> Embedding (Ollama) ──> Vector Search (pgvector) ──> Top-K Context ──> Prompt Construction ──> LLM (llama3.2)
-
-```
-
----
-
-## 🛠️ Tech Stack & Configurations
-
-### 🤖 AI Models (Ollama)
-* **Embedding Model:** `nomic-embed-text` (Generates 768-dimensional dense vectors used for semantic search).
-* **LLM Model:** `llama3.2` (Handles context-aware answer generation).
-
-### ✂️ Chunking Strategy
-* **Chunk Size:** 1000 characters
-* **Chunk Overlap:** 200 characters
-* **Why:** Balances granular semantic data retrieval with enough surrounding context to prevent information loss at chunk boundaries.
-
-### 🧹 Text Cleaning (Critical Step)
-To prevent database serialization errors during insertion, the backend automatically sanitizes extracted text before embedding:
-* Removes `NULL` bytes (`\x00`).
-* Strips invalid control characters.
-* Normalizes whitespace.
-
----
-
-## 🗄️ Database Schema
-
-The system uses PostgreSQL with the `pgvector` extension to handle relational metadata and high-dimensional vector data side-by-side.
-
-```sql
--- Track uploaded files
-CREATE TABLE documents (
-    id SERIAL PRIMARY KEY,
-    document_id TEXT UNIQUE NOT NULL,
-    filename TEXT NOT NULL,
-    file_type TEXT DEFAULT 'pdf',
-    file_size BIGINT,
-    upload_time TIMESTAMP DEFAULT NOW()
-);
-
--- Store document chunks and their high-dimensional embeddings
-CREATE TABLE document_chunks (
-    id SERIAL PRIMARY KEY,
-
-    document_id TEXT REFERENCES documents(document_id),
-
-    chunk_index INT,
-    content TEXT NOT NULL,
-
-    embedding VECTOR(768),
-
-    created_at TIMESTAMP DEFAULT NOW()
-);
-
-CREATE TABLE chat_sessions (
-    id SERIAL PRIMARY KEY,
-    session_id TEXT UNIQUE,
-    created_at TIMESTAMP DEFAULT NOW()
-);
-
-CREATE TABLE chat_messages (
-    id SERIAL PRIMARY KEY,
-
-    session_id TEXT REFERENCES chat_sessions(session_id),
-
-    role TEXT,  -- user / assistant
-    message TEXT,
-
-    created_at TIMESTAMP DEFAULT NOW()
-);
-
-```
-
-### 🔎 Vector Search Logic
-
-The system utilizes **Euclidean Distance (`<->`)** (or optionally Cosine Distance `<=>`) to fetch the top 5 most relevant chunks:
-
-```sql
-SELECT content 
-FROM document_chunks 
-ORDER BY embedding <-> :query_embedding 
-LIMIT 5;
-
-```
-
----
-
-## 📌 API Endpoints Reference
-
-### 1. Upload PDF
-
-* **Method:** `POST`
-* **Path:** `/upload`
-* **Payload:** `multipart/form-data` (File)
-
-**Response:**
-
-```json
 {
-  "document_id": "8f3b29c1-a842-4d73-b391-729019e1e54c",
-  "filename": "architecture_guide.pdf",
-  "status": "processed"
+  "message": "Tell me about the document"
 }
 
-```
 
-### 2. Chat with Document
+🧠 5. Technology Stack (and Why)
+⚙️ Backend: FastAPI (Python)
+Why:
+Lightweight & fast
+Async support
+Ideal for AI APIs
+Easy integration with ML services
+🧠 LLM: Ollama
+Why:
+Runs models locally
+No OpenAI dependency
+Supports LLaMA models
+Fast inference inside Docker
+🧮 Embeddings: nomic-embed-text
+Why:
+High-quality semantic embeddings
+Lightweight compared to OpenAI embeddings
+Works offline
+🗄️ Database: PostgreSQL + pgvector
+Why:
+Production-grade relational DB
+pgvector enables vector similarity search
+Scalable for enterprise RAG systems
+📄 Parsing: PyPDF
+Why:
+Simple PDF extraction
+Works well for text-based documents
+🐳 Docker
+Why:
+Full environment reproducibility
+Easy deployment
+Isolated services (DB, backend, LLM)
+🌐 Frontend: Next.js
+Why:
+React-based UI framework
+Fast rendering
+Easy API integration
+Ideal for ChatGPT-like UI
 
-* **Method:** `POST`
-* **Path:** `/chat`
+🔮 Future Roadmap (v1.2 → v2.0)
+🚀 Planned Improvements
+Multi-document RAG
+Session-based chat memory
+Streaming responses (ChatGPT-like)
+Hybrid search (BM25 + Vector)
+Reranking model layer
+Token-aware chunking
+Context compression engine
+API authentication layer
 
-**Request Body:**
+🧠 Summary
 
-```json
-{
-  "message": "Tell me about software architecture"
-}
+This system is a:
 
-```
+Lightweight but extensible RAG foundation built for production evolution.
 
-**Response Body:**
+It is designed to gradually evolve into:
 
-```json
-{
-  "response": "Based on the provided documents, software architecture refers to..."
-}
-
-```
-
----
-
-## ⚠️ Known Limitations (v1.1)
-
-1. **Global Vector Space:** There is currently no multi-tenant or per-document filtering logic. All uploaded documents share the same global vector space during retrieval.
-2. **Stateless Chat:** No session-based chat memory is implemented. Every query is processed independently without historical conversation context.
-3. **Basic Retrieval:** The search pipeline relies entirely on basic vector similarity. Advanced techniques like metadata filtering, hybrid search (BM25 + Vector), or cross-encoder reranking are not yet supported.
-4. **Fixed Chunking:** Document splitting is purely character-bound; it does not account for natural semantic boundaries (e.g., paragraphs or markdown headers).
-
-```
-
-```
+OpenAI / LangChain-style production RAG architecture
+            
