@@ -9,27 +9,26 @@ class LLMService:
         self.model = OLLAMA_MODEL
 
     def generate(self, prompt: str) -> str:
-        try:
-            res = requests.post(
-                self.url,
-                json={
-                    "model": self.model,
-                    "prompt": prompt,
-                    "stream": True,
-                    "options": {
-                        "num_predict": 200  # 🔥 limit response length
-                    }
-                },
-                timeout=120
-            )
 
-            res.raise_for_status()
-            data = res.json()
+        res = requests.post(
+            self.url,
+            json={
+                "model": self.model,
+                "prompt": prompt,
+                "stream": False
+            },
+            timeout=120
+        )
 
-            return data.get("response", "")
+        print("OLLAMA RAW RESPONSE:", res.text)  # 🔥 DEBUG
 
-        except requests.RequestException as e:
-            return f"LLM request failed: {str(e)}"
+        res.raise_for_status()
+        data = res.json()
 
-        except Exception as e:
-            return f"Unexpected error: {str(e)}"
+        # 🔥 SAFE EXTRACTION
+        return (
+            data.get("response")
+            or data.get("message")
+            or data.get("text")
+            or ""
+        )

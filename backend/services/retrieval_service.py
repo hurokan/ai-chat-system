@@ -1,38 +1,26 @@
-from config.settings import (
-    FINAL_TOP_K
-)
-
-from retrieval.hybrid_search import (
-    HybridSearch
-)
-
-from services.embedding_service import (
-    get_embedding
-)
+from config.settings import FINAL_TOP_K
+from retrieval.hybrid_search import HybridSearch
+from services.embedding_service import get_embedding
 
 
 class RetrievalService:
 
     def __init__(self):
-
         self.hybrid = HybridSearch()
 
-    def retrieve(
-        self,
-        query,
-        top_k=FINAL_TOP_K
-    ):
+    def retrieve(self, query, top_k=FINAL_TOP_K):
 
-        query_embedding = (
-            get_embedding(query)
-        )
+        query_embedding = get_embedding(query)
 
-        results = (
-            self.hybrid.search(
-                query,
-                query_embedding
-            )
-        )
+        print("QUERY:", query)
+        print("EMBEDDING LEN:", len(query_embedding))
+
+        results = self.hybrid.search(query, query_embedding)
+
+        print("DEBUG RAW RESULTS:", results)
+
+        if not results:
+            return []
 
         return results[:top_k]
 
@@ -42,13 +30,11 @@ class RetrievalService:
 
         context_parts = []
         total_length = 0
-        max_length = 1500  # 🔥 HARD LIMIT (important)
+        max_length = 1500
 
         for chunk in chunks:
 
             content = chunk.get("content", "")
-
-            # trim each chunk
             content = content[:500]
 
             if total_length + len(content) > max_length:

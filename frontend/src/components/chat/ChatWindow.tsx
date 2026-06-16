@@ -21,9 +21,10 @@ export default function ChatWindow() {
   const [loading, setLoading] = useState(false);
 
   const handleSend = async (text: string) => {
+    console.log("🟡 handleSend triggered:", text);
     if (!text.trim()) return;
 
-    // 1. Add user message
+    // Add user message immediately
     const userMessage: Message = {
       role: "user",
       content: text,
@@ -33,17 +34,26 @@ export default function ChatWindow() {
     setLoading(true);
 
     try {
-      // 2. Call backend
+      // Call backend
       const res = await sendMessage(text);
 
-      // 3. IMPORTANT FIX: extract response correctly
+      console.log("DEBUG API RESPONSE:", res);
+
+      // SAFE extraction (backend returns "response")
+      const answer =
+        res?.response ||
+        res?.answer ||
+        "No response received";
+
       const botMessage: Message = {
         role: "assistant",
-        content: res.response || "No response received",
+        content: answer,
       };
 
       setMessages((prev) => [...prev, botMessage]);
     } catch (error) {
+      console.error("Chat error:", error);
+
       setMessages((prev) => [
         ...prev,
         {
@@ -51,9 +61,9 @@ export default function ChatWindow() {
           content: "Error while fetching AI response",
         },
       ]);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   return (
