@@ -1,23 +1,60 @@
-from db.connection import get_conn
-from services.embedding_service import get_embedding
+from config.settings import (
+    FINAL_TOP_K
+)
 
-def retrieve_context(query: str, limit: int = 5):
+from retrieval.hybrid_search import (
+    HybridSearch
+)
 
-    conn = get_conn()
-    cur = conn.cursor()
+from services.embedding_service import (
+    get_embedding
+)
 
-    q_embedding = get_embedding(query)
 
-    cur.execute("""
-        SELECT content, document_id
-        FROM document_chunks
-        ORDER BY embedding <-> %s::vector
-        LIMIT %s
-    """, (str(q_embedding), limit))
+class RetrievalService:
 
-    rows = cur.fetchall()
+    def __init__(self):
 
-    cur.close()
-    conn.close()
+        self.hybrid = HybridSearch()
 
-    return rows
+    def retrieve(
+        self,
+        query,
+        top_k=FINAL_TOP_K
+    ):
+
+        query_embedding = (
+            get_embedding(query)
+        )
+
+        results = (
+            self.hybrid.search(
+                query,
+                query_embedding
+            )
+        )
+
+        return results[:top_k]
+
+    def build_context(self, query, top_k=FINAL_TOP_K):
+
+        chunks = self.retrieve(query, top_k)
+
+        context_parts = []
+        total_length = 0
+        max_length = 1500  # 🔥 HARD LIMIT (important)
+
+        for chunk in chunks:
+
+            content = chunk.get("content", "")
+
+            # trim each chunk
+            content = content[:500]
+
+            if total_length + len(content) > max_length:
+                break
+
+            context_parts.append(content)
+            total_length += len(content)
+
+        return "\n\n".join(context_parts)

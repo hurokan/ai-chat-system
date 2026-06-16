@@ -1,34 +1,29 @@
-import requests
-from services.retrieval_service import retrieve_context
+from services.retrieval_service import RetrievalService
+from services.llm_service import LLMService  # example abstraction
 
-OLLAMA_CHAT_URL = "http://ollama:11434/api/generate"
+retrieval_service = RetrievalService()
+llm_service = LLMService()
 
 def generate_answer(message: str):
 
-    chunks = retrieve_context(message)
+    context = retrieval_service.build_context(message)
 
-    context = "\n\n".join([c[0] for c in chunks])
+    # 🔥 safety guard
+    if len(context) > 1500:
+        context = context[:1500]
 
     prompt = f"""
-Use context to answer:
+You are a helpful assistant.
+
+Use ONLY the context below. If answer is not in context, say you don't know.
 
 Context:
 {context}
 
 Question:
 {message}
+
+Answer:
 """
 
-    res = requests.post(
-        OLLAMA_CHAT_URL,
-        json={
-            "model": "llama3.2",
-            "prompt": prompt,
-            "stream": False
-        }
-    )
-
-    return {
-        "response": res.json().get("response", ""),
-        "sources": chunks
-    }
+    return llm_service.generate(prompt)

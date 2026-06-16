@@ -22,6 +22,8 @@ services:
     environment:
       OLLAMA_URL: http://ollama:11434
       LITELLM_URL: http://litellm:4000
+    volumes:
+      - ./backend:/app
     restart: always
 
   frontend:

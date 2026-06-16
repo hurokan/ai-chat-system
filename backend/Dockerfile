@@ -28,4 +28,4 @@ ENV PYTHONPATH=/app
 EXPOSE 8000
 
 # Optional: run migrations before server starts
-CMD ["sh", "-c", "python migrate.py && uvicorn main:app --host 0.0.0.0 --port 8000"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
