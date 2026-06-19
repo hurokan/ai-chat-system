@@ -15,9 +15,13 @@ class LLMService:
             json={
                 "model": self.model,
                 "prompt": prompt,
-                "stream": False
+                "stream": False,
+                "options": {
+                    "num_predict": 128,
+                    "temperature": 0.2
+                }
             },
-            timeout=120
+            timeout=300
         )
 
         print("OLLAMA RAW RESPONSE:", res.text)  # 🔥 DEBUG

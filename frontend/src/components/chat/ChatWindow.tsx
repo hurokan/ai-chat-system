@@ -11,35 +11,64 @@ type Message = {
 };
 
 export default function ChatWindow() {
+
+  // One session per browser tab/chat
+  const [sessionId] = useState(
+    crypto.randomUUID()
+  );
+
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
-      content: "Hello 👋 Ask anything from your documents.",
+      content:
+        "Hello 👋 Ask anything from your documents.",
     },
   ]);
 
   const [loading, setLoading] = useState(false);
 
-  const handleSend = async (text: string) => {
-    console.log("🟡 handleSend triggered:", text);
-    if (!text.trim()) return;
+  const handleSend = async (
+    text: string
+  ) => {
 
-    // Add user message immediately
+    console.log(
+      "🟡 handleSend triggered:",
+      text
+    );
+
+    if (!text.trim()) {
+      return;
+    }
+
     const userMessage: Message = {
       role: "user",
       content: text,
     };
 
-    setMessages((prev) => [...prev, userMessage]);
+    setMessages((prev) => [
+      ...prev,
+      userMessage,
+    ]);
+
     setLoading(true);
 
     try {
-      // Call backend
-      const res = await sendMessage(text);
 
-      console.log("DEBUG API RESPONSE:", res);
+      console.log(
+        "SESSION ID:",
+        sessionId
+      );
 
-      // SAFE extraction (backend returns "response")
+      const res = await sendMessage(
+        text,
+        sessionId
+      );
+
+      console.log(
+        "DEBUG API RESPONSE:",
+        res
+      );
+
       const answer =
         res?.response ||
         res?.answer ||
@@ -50,26 +79,39 @@ export default function ChatWindow() {
         content: answer,
       };
 
-      setMessages((prev) => [...prev, botMessage]);
+      setMessages((prev) => [
+        ...prev,
+        botMessage,
+      ]);
+
     } catch (error) {
-      console.error("Chat error:", error);
+
+      console.error(
+        "Chat error:",
+        error
+      );
 
       setMessages((prev) => [
         ...prev,
         {
           role: "assistant",
-          content: "Error while fetching AI response",
+          content:
+            "Error while fetching AI response",
         },
       ]);
+
     } finally {
+
       setLoading(false);
+
     }
   };
 
   return (
     <div className="flex flex-col h-screen bg-gray-50">
-      {/* CHAT AREA */}
+
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
+
         {messages.map((msg, index) => (
           <ChatMessage
             key={index}
@@ -83,12 +125,15 @@ export default function ChatWindow() {
             AI is thinking...
           </div>
         )}
+
       </div>
 
-      {/* INPUT AREA */}
       <div className="border-t bg-white p-3">
-        <ChatInput onSend={handleSend} />
+        <ChatInput
+          onSend={handleSend}
+        />
       </div>
+
     </div>
   );
 }
