@@ -1,6 +1,6 @@
 VECTOR_TOP_K = 30
 FTS_TOP_K = 30
-FINAL_TOP_K = 2
+FINAL_TOP_K = 5
 RRF_K = 60
 
 # Ollama

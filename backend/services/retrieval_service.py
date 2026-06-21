@@ -30,12 +30,12 @@ class RetrievalService:
 
         context_parts = []
         total_length = 0
-        max_length = 1500
+        max_length = 800
 
         for chunk in chunks:
 
             content = chunk.get("content", "")
-            content = content[:500]
+            content = content[:300]
 
             if total_length + len(content) > max_length:
                 break
