@@ -8,39 +8,73 @@ class RetrievalService:
     def __init__(self):
         self.hybrid = HybridSearch()
 
-    def retrieve(self, query, top_k=FINAL_TOP_K):
+    def retrieve(
+        self,
+        query,
+        top_k=FINAL_TOP_K
+    ):
 
         query_embedding = get_embedding(query)
 
-        print("QUERY:", query)
-        print("EMBEDDING LEN:", len(query_embedding))
+        results = self.hybrid.search(
+            query,
+            query_embedding
+        )
 
-        results = self.hybrid.search(query, query_embedding)
+        print("=" * 60)
+        print("TOP HYBRID RESULTS")
+        print("=" * 60)
 
-        print("DEBUG RAW RESULTS:", results)
+        for item in results[:10]:
 
-        if not results:
-            return []
+            print(
+                f"Chunk={item.get('chunk_id')} | "
+                f"Source={item.get('source')} | "
+                f"RRF={item.get('rrf_score', 0)}"
+            )
 
         return results[:top_k]
 
-    def build_context(self, query, top_k=FINAL_TOP_K):
+    def build_context(
+        self,
+        query,
+        top_k=FINAL_TOP_K
+    ):
 
-        chunks = self.retrieve(query, top_k)
+        chunks = self.retrieve(
+            query,
+            top_k
+        )
 
         context_parts = []
         total_length = 0
-        max_length = 800
+
+        max_length = 1500
 
         for chunk in chunks:
 
-            content = chunk.get("content", "")
-            content = content[:300]
+            content = chunk.get(
+                "content",
+                ""
+            )
 
-            if total_length + len(content) > max_length:
+            content = content[:500]
+
+            if (
+                total_length +
+                len(content)
+                > max_length
+            ):
                 break
 
-            context_parts.append(content)
-            total_length += len(content)
+            context_parts.append(
+                content
+            )
 
-        return "\n\n".join(context_parts)
+            total_length += len(
+                content
+            )
+
+        return "\n\n".join(
+            context_parts
+        )

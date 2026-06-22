@@ -1,7 +1,16 @@
 from concurrent.futures import ThreadPoolExecutor
-from retrieval.vector_search import VectorSearch
-from retrieval.keyword_search import KeywordSearch
-from retrieval.rrf import RRF
+
+from retrieval.vector_search import (
+    VectorSearch
+)
+
+from retrieval.bm25_search import (
+    BM25Search
+)
+
+from retrieval.rrf import (
+    RRF
+)
 
 
 class HybridSearch:
@@ -10,7 +19,7 @@ class HybridSearch:
 
         self.vector = VectorSearch()
 
-        self.keyword = KeywordSearch()
+        self.bm25 = BM25Search()
 
         self.rrf = RRF()
 
@@ -32,8 +41,8 @@ class HybridSearch:
                 vector_limit
             )
 
-            keyword_future = executor.submit(
-                self.keyword.search,
+            bm25_future = executor.submit(
+                self.bm25.search,
                 query,
                 keyword_limit
             )
@@ -42,13 +51,13 @@ class HybridSearch:
                 vector_future.result()
             )
 
-            keyword_results = (
-                keyword_future.result()
+            bm25_results = (
+                bm25_future.result()
             )
 
         merged = self.rrf.merge(
             vector_results,
-            keyword_results
+            bm25_results
         )
 
         return merged

@@ -28,17 +28,18 @@ class VectorSearch:
                 SELECT
                     dc.id,
                     dc.document_id,
+                    dc.filename,
                     dc.chunk_index,
                     dc.content,
                     dc.metadata,
                     dc.embedding <=> %s::vector AS distance
-
+                
                 FROM document_chunks dc
-
+                
                 WHERE dc.embedding IS NOT NULL
-
+                
                 ORDER BY dc.embedding <=> %s::vector
-
+                
                 LIMIT %s
                 """
 
@@ -58,15 +59,15 @@ class VectorSearch:
                 rank = 1
 
                 for row in rows:
-
                     results.append(
                         {
                             "chunk_id": row[0],
                             "document_id": str(row[1]),
-                            "chunk_index": row[2],
-                            "content": row[3],
-                            "metadata": row[4],
-                            "distance": float(row[5]),
+                            "filename": row[2],
+                            "chunk_index": row[3],
+                            "content": row[4],
+                            "metadata": row[5],
+                            "distance": float(row[6]),
                             "rank": rank,
                             "source": "vector"
                         }

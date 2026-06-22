@@ -1,4 +1,5 @@
 from collections import defaultdict
+import copy
 
 
 class RRF:
@@ -30,7 +31,7 @@ class RRF:
                 item["rank"]
             )
 
-            chunk_map[chunk_id] = item
+            chunk_map[chunk_id] = copy.deepcopy(item)
 
         for item in keyword_results:
 
@@ -40,7 +41,8 @@ class RRF:
                 item["rank"]
             )
 
-            chunk_map[chunk_id] = item
+            if chunk_id not in chunk_map:
+                chunk_map[chunk_id] = copy.deepcopy(item)
 
         final = []
 
